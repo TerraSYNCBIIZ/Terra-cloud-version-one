@@ -1,6 +1,8 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { supabase } from '../lib/supabase';
+import type { Session, User as SupabaseUser } from '@supabase/supabase-js';
 
 // Define user roles
 export type UserRole = 'admin' | 'manager' | 'field_technician';
@@ -21,7 +23,8 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  signup: (email: string, password: string, name: string, role: UserRole) => Promise<void>;
+  logout: () => Promise<void>;
   isAdmin: () => boolean;
   isManager: () => boolean;
   isFieldTechnician: () => boolean;
@@ -35,81 +38,152 @@ interface AuthContextType {
 // Create the context
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Mock user data
-const MOCK_USERS = [
-  {
-    id: '1',
-    name: 'John Smith',
-    email: 'admin@example.com',
-    role: 'admin' as UserRole,
-    // Admin has access to all properties
-    assignedPropertyIds: ['1', '2', '3', '4', '5'],
-  },
-  {
-    id: '2',
-    name: 'Sarah Johnson',
-    email: 'manager@example.com',
-    role: 'manager' as UserRole,
-    // Manager is responsible for multiple properties
-    assignedPropertyIds: ['1', '2'],
-    // Managers can see all tasks for their properties
-    assignedTaskIds: ['101', '102', '103', '104', '105', '106']
-  },
-  {
-    id: '3',
-    name: 'Robert Wilson',
-    email: 'tech@example.com',
-    role: 'field_technician' as UserRole,
-    // Field technician is typically assigned to one property, occasionally two
-    assignedPropertyIds: ['1'],
-    // Field technicians can only see equipment they're responsible for
-    assignedEquipmentIds: ['101', '102', '103'],
-    // Field technicians only see their own tasks
-    assignedTaskIds: ['101', '102']
-  }
-];
-
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Simulate checking for a saved session
+  // Check for session and set up auth state listener
   useEffect(() => {
-    // Check if user is stored in localStorage (in a real app)
-    // For this demo, we'll auto-login as admin
-    const savedUser = MOCK_USERS[0]; // Default to admin for now
+    // Get initial session
+    const initializeAuth = async () => {
+      setLoading(true);
+      
+      // Check if there's an active session
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session) {
+        await fetchUserProfile(session.user);
+      }
+      
+      // Set up auth state change listener
+      const { data: { subscription } } = await supabase.auth.onAuthStateChange(
+        async (event, session) => {
+          if (event === 'SIGNED_IN' && session) {
+            await fetchUserProfile(session.user);
+          } else if (event === 'SIGNED_OUT') {
+            setUser(null);
+          }
+        }
+      );
+      
+      setLoading(false);
+      
+      // Cleanup subscription on unmount
+      return () => {
+        subscription.unsubscribe();
+      };
+    };
     
-    if (savedUser) {
-      setUser(savedUser);
-    }
-    
-    setLoading(false);
+    initializeAuth();
   }, []);
+  
+  // Fetch user profile data from Supabase
+  const fetchUserProfile = async (supabaseUser: SupabaseUser) => {
+    try {
+      // Get user profile from profiles table
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', supabaseUser.id)
+        .single();
+        
+      if (error) {
+        throw error;
+      }
+      
+      if (data) {
+        // Get user's assigned properties, equipment, and tasks
+        const { data: assignedProperties } = await supabase
+          .from('property_assignments')
+          .select('property_id')
+          .eq('user_id', supabaseUser.id);
+          
+        const { data: assignedEquipment } = await supabase
+          .from('equipment_assignments')
+          .select('equipment_id')
+          .eq('user_id', supabaseUser.id);
+          
+        const { data: assignedTasks } = await supabase
+          .from('task_assignments')
+          .select('task_id')
+          .eq('user_id', supabaseUser.id);
+        
+        // Set user with profile data and assignments
+        setUser({
+          id: supabaseUser.id,
+          name: data.name || supabaseUser.email?.split('@')[0] || '',
+          email: supabaseUser.email || '',
+          role: data.role || 'field_technician',
+          assignedPropertyIds: assignedProperties?.map(p => p.property_id) || [],
+          assignedEquipmentIds: assignedEquipment?.map(e => e.equipment_id) || [],
+          assignedTaskIds: assignedTasks?.map(t => t.task_id) || []
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+    }
+  };
 
-  // Mock login function
+  // Login function using Supabase
   const login = async (email: string, password: string) => {
     setLoading(true);
     
     try {
-      // In a real app, this would make an API call
-      const foundUser = MOCK_USERS.find(user => user.email === email);
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
       
-      if (foundUser) {
-        // Simulate successful login
-        setUser(foundUser);
-        // In a real app, store auth token/user in localStorage or a secure cookie
-      } else {
-        throw new Error('Invalid credentials');
+      if (error) {
+        throw error;
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // Signup function using Supabase
+  const signup = async (email: string, password: string, name: string, role: UserRole) => {
+    setLoading(true);
+    
+    try {
+      // Create the user in Supabase Auth
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password
+      });
+      
+      if (error) {
+        throw error;
+      }
+      
+      if (data.user) {
+        // Create a profile record in the profiles table
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert([
+            {
+              id: data.user.id,
+              name,
+              role
+            }
+          ]);
+          
+        if (profileError) {
+          throw profileError;
+        }
       }
     } finally {
       setLoading(false);
     }
   };
 
-  // Mock logout function
-  const logout = () => {
-    setUser(null);
-    // In a real app, remove auth token/user from localStorage or cookie
+  // Logout function using Supabase
+  const logout = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error('Error signing out:', error);
+    }
   };
 
   // Role check helper functions
@@ -164,7 +238,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     <AuthContext.Provider value={{ 
       user, 
       loading, 
-      login, 
+      login,
+      signup,
       logout,
       isAdmin,
       isManager,
