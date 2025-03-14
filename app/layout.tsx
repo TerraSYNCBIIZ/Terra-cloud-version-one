@@ -1,5 +1,6 @@
 import './globals.css'
 import { Inter } from 'next/font/google'
+import { AuthProvider } from './context/AuthContext'
 
 // Initialize fonts
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
@@ -20,8 +21,10 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable}`}>
       <body className="min-h-screen flex flex-col">
-        {children}
+        <AuthProvider>
+          {children}
+        </AuthProvider>
       </body>
     </html>
   )
-} 
+}

@@ -54,6 +54,28 @@ export default function PropertiesMapPage() {
     }
   ];
 
+  // Mock property boundaries - in a real app, these would come from the API
+  const propertyBoundaries = [
+    {
+      // North Campus boundary
+      paths: [
+        { lat: 39.784719, lng: -89.653150 },
+        { lat: 39.784719, lng: -89.648150 },
+        { lat: 39.779719, lng: -89.648150 },
+        { lat: 39.779719, lng: -89.653150 }
+      ]
+    },
+    {
+      // South Campus boundary
+      paths: [
+        { lat: 39.774719, lng: -89.647150 },
+        { lat: 39.774719, lng: -89.643150 },
+        { lat: 39.769719, lng: -89.643150 },
+        { lat: 39.769719, lng: -89.647150 }
+      ]
+    }
+  ];
+
   // Convert properties to map locations
   const mapLocations = properties.map(property => ({
     id: property.id,
@@ -66,6 +88,14 @@ export default function PropertiesMapPage() {
   const center = {
     lat: properties.reduce((sum, property) => sum + property.location.lat, 0) / properties.length,
     lng: properties.reduce((sum, property) => sum + property.location.lng, 0) / properties.length
+  };
+
+  // Handle map clicks
+  const handleMapClick = (e: google.maps.MapMouseEvent) => {
+    if (e.latLng) {
+      console.log("Map clicked at:", e.latLng.lat(), e.latLng.lng());
+      // Could be used to add new property locations
+    }
   };
 
   return (
@@ -106,7 +136,10 @@ export default function PropertiesMapPage() {
               center={center}
               zoom={13}
               locations={mapLocations}
+              boundaries={propertyBoundaries}
               className="h-full w-full"
+              showCurrentLocation={true}
+              onClick={handleMapClick}
             />
           </div>
         </Card>
@@ -133,4 +166,4 @@ export default function PropertiesMapPage() {
       </div>
     </MainLayout>
   );
-} 
+}

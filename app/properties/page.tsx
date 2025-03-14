@@ -3,8 +3,50 @@
 import React from 'react';
 import MainLayout from '../components/layout/MainLayout';
 import Link from 'next/link';
+import { GoogleMapComponent } from '../components/ui/GoogleMap';
 
 export default function PropertiesPage() {
+  // Placeholder properties data - this would come from an API in a real app
+  const properties = [
+    {
+      id: "1",
+      name: 'North Campus',
+      address: '1234 College Avenue, Springfield, IL',
+      status: 'Active',
+      type: 'Academic',
+      location: { lat: 39.781719, lng: -89.650150 }
+    },
+    {
+      id: "2",
+      name: 'South Campus',
+      address: '5678 University Drive, Springfield, IL',
+      status: 'Active',
+      type: 'Residential',
+      location: { lat: 39.771719, lng: -89.645150 }
+    },
+    {
+      id: "3",
+      name: 'Research Park',
+      address: '910 Innovation Way, Springfield, IL',
+      status: 'Active',
+      type: 'Research',
+      location: { lat: 39.776719, lng: -89.655150 }
+    }
+  ];
+
+  // Convert properties to map locations
+  const mapLocations = properties.map(property => ({
+    id: property.id,
+    position: property.location,
+    title: property.name,
+    description: property.address
+  }));
+
+  // Calculate map center (average of all property locations)
+  const center = {
+    lat: properties.reduce((sum, property) => sum + property.location.lat, 0) / properties.length,
+    lng: properties.reduce((sum, property) => sum + property.location.lng, 0) / properties.length
+  };
   return (
     <MainLayout>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -48,25 +90,40 @@ export default function PropertiesPage() {
         {/* Properties Map View */}
         <div className="card mb-8">
           <h2 className="text-lg font-medium text-neutral-900 dark:text-white mb-4">Property Locations</h2>
-          <div className="bg-neutral-100 dark:bg-neutral-800 h-80 rounded-lg flex items-center justify-center">
-            <p className="text-neutral-500 dark:text-neutral-400">Map visualization will be displayed here</p>
+          <div className="h-80 rounded-lg overflow-hidden">
+            <GoogleMapComponent 
+              center={center}
+              zoom={13}
+              locations={mapLocations}
+              className="h-full w-full"
+              showCurrentLocation={false}
+            />
           </div>
         </div>
 
         {/* Properties List */}
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {[1, 2, 3, 4, 5, 6].map((item) => (
-            <div key={item} className="card hover:shadow-lg transition-300">
-              <div className="bg-primary-50 dark:bg-primary-950 h-48 rounded-lg mb-4 flex items-center justify-center">
-                <svg className="h-16 w-16 text-primary-300 dark:text-primary-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                </svg>
+          {properties.map((property) => (
+            <div key={property.id} className="card hover:shadow-lg transition-300">
+              <div className="h-48 rounded-lg mb-4 overflow-hidden">
+                <GoogleMapComponent 
+                  center={property.location}
+                  zoom={15}
+                  locations={[{
+                    id: property.id,
+                    position: property.location,
+                    title: property.name,
+                    description: property.address
+                  }]}
+                  className="h-full w-full"
+                  showCurrentLocation={false}
+                />
               </div>
-              <h3 className="text-lg font-medium text-neutral-900 dark:text-white mb-1">North Campus</h3>
-              <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-4">1234 College Avenue, Springfield, IL</p>
+              <h3 className="text-lg font-medium text-neutral-900 dark:text-white mb-1">{property.name}</h3>
+              <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-4">{property.address}</p>
               <div className="flex items-center justify-between">
                 <div className="flex items-center">
-                  <span className="badge-success">Active</span>
+                  <span className="badge-success">{property.status}</span>
                 </div>
                 <div className="flex space-x-2">
                   <button type="button" className="p-1 text-neutral-400 hover:text-primary-500">
@@ -75,7 +132,7 @@ export default function PropertiesPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                     </svg>
                   </button>
-                  <Link href={`/properties/${item}`} className="p-1 text-neutral-400 hover:text-primary-500">
+                  <Link href={`/properties/${property.id}`} className="p-1 text-neutral-400 hover:text-primary-500">
                     <span className="sr-only">View details</span>
                     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -120,4 +177,4 @@ export default function PropertiesPage() {
       </div>
     </MainLayout>
   );
-} 
+}
